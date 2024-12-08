@@ -53,6 +53,36 @@ module Map = struct
     in
     aux m initial_direction sx sy;
     visited |> Array.to_list |> List.filter (fun x -> x) |> List.length
+
+  let encounters_loop ?(initial_direction = Direction.Up) m pos =
+    let rec aux m direction x y distance =
+      if distance >= Array.length m.m then true
+      else
+        let dx, dy = Direction.delta direction in
+        let x, y = (x + dx, y + dy) in
+        match get m x y with
+        | None -> false
+        | Some v when v ->
+            aux m
+              (Direction.turn_right direction)
+              (x - dx) (y - dy) (distance + 1)
+        | Some v -> aux m direction x y (distance + 1)
+    in
+    let x, y = pos in
+    aux m initial_direction x y 0
+
+  let possible_loops m start_pos =
+    let count = ref 0 in
+    for i = 0 to Array.length m.m - 1 do
+      let x, y = (i mod m.width, i / m.width) in
+      match get m x y with
+      | Some v when not v ->
+          m.m.(i) <- true;
+          if encounters_loop m start_pos then count := !count + 1;
+          m.m.(i) <- false
+      | _ -> ()
+    done;
+    !count
 end
 
 let find_start_pos lines =
@@ -74,5 +104,6 @@ let () =
       let map = Map.parse lines in
       match (start_pos, map) with
       | Some start_pos, Some map ->
-          Printf.printf "%d\n" @@ Map.calculate_distinct_positions map start_pos
+          Printf.printf "%d\n" @@ Map.calculate_distinct_positions map start_pos;
+          Printf.printf "%d\n" @@ Map.possible_loops map start_pos
       | _ -> ())
