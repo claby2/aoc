@@ -29,15 +29,17 @@ module Garden = struct
       None
     else Some g.g.((y * g.width) + x)
 
+  let height g = Array.length g.g / g.width
+
   let get_neighbors g x y =
     let directions = [ (0, -1); (1, 0); (0, 1); (-1, 0) ] in
     List.map (fun (dx, dy) -> get g (x + dx) (y + dy)) directions
 
   let perimeters g =
-    let height = Array.length g.g / g.width in
+    let h = height g in
     let rec aux x y =
       if x >= g.width then aux 0 (y + 1)
-      else if y >= height then []
+      else if y >= h then []
       else
         match get g x y with
         | None -> []
@@ -56,8 +58,44 @@ module Garden = struct
     in
     Array.of_list (aux 0 0)
 
-  let calculate_price g =
-    let p = perimeters g in
+  let corners g =
+    let h = height g in
+    let directions = [ (0, -1); (1, 0); (0, 1); (-1, 0) ] in
+    let direction_pairs =
+      List.combine directions (List.tl directions @ [ List.hd directions ])
+    in
+    let rec aux x y =
+      if x >= g.width then aux 0 (y + 1)
+      else if y >= h then []
+      else
+        match get g x y with
+        | None -> []
+        | Some c ->
+            let get' g x y =
+              match get g x y with Some c' when c == c' -> true | _ -> false
+            in
+            let info =
+              direction_pairs
+              |> List.map (fun (d1, d2) ->
+                     let d1x, d1y = d1 in
+                     let d2x, d2y = d2 in
+                     let d3x, d3y = (d1x + d2x, d1y + d2y) in
+                     ( get' g (x + d1x) (y + d1y),
+                       get' g (x + d2x) (y + d2y),
+                       get' g (x + d3x) (y + d3y) ))
+            in
+            let count =
+              info
+              |> List.filter (function
+                   | true, true, false | false, false, _ -> true
+                   | _ -> false)
+              |> List.length
+            in
+            count :: aux (x + 1) y
+    in
+    Array.of_list (aux 0 0)
+
+  let calculate_price g info =
     let visited = ref CoordSet.empty in
     let rec aux c x y =
       if CoordSet.mem (x, y) !visited then (0, 0)
@@ -72,7 +110,7 @@ module Garden = struct
                  (fun acc (a, p) ->
                    let a', p' = acc in
                    (a' + a, p' + p))
-                 (1, p.((y * g.width) + x))
+                 (1, info.((y * g.width) + x))
         | _ -> (0, 0)
     in
     let price = ref 0 in
@@ -83,6 +121,9 @@ module Garden = struct
       done
     done;
     !price
+
+  let calculate_perimeter_price g = calculate_price g (perimeters g)
+  let calculate_side_price g = calculate_price g (corners g)
 end
 
 let () =
@@ -91,4 +132,6 @@ let () =
       let g = Garden.parse lines in
       match g with
       | None -> ()
-      | Some g -> Printf.printf "%d\n" @@ Garden.calculate_price g)
+      | Some g ->
+          Printf.printf "%d\n" @@ Garden.calculate_perimeter_price g;
+          Printf.printf "%d\n" @@ Garden.calculate_side_price g)
